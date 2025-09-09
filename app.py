@@ -18,21 +18,27 @@ st.title("📦 PostaConnect - AI-powered Delivery Intelligence System")
 st.markdown("Participant : **Blandina Kakore**")
 
 # -----------------------------
-# 2. Upload or Load Dataset
+# 2. Upload Dataset
 # -----------------------------
-uploaded_file = st.sidebar.file_uploader("Upload delivery dataset", type=["csv"])
+uploaded_file = st.sidebar.file_uploader(
+    "Upload delivery dataset (CSV, max 200MB)", type=["csv"]
+)
 
-if uploaded_file:
-    posta = pd.read_csv(uploaded_file)
-else:
-    st.info("Using default dataset: DATA/delivery_five_cities_tanzania.csv")
-    posta = pd.read_csv(r"DATA\delivery_five_cities_tanzania.csv")
+if uploaded_file is None:
+    st.warning("Please upload a delivery dataset CSV file to run the app.")
+    st.stop()  # Stop execution until file is uploaded
+
+posta = pd.read_csv(uploaded_file)
 
 # -----------------------------
 # 3. Preprocessing
 # -----------------------------
-posta['sign_time'] = pd.to_datetime("2025-" + posta['sign_time'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
-posta['receipt_time'] = pd.to_datetime("2025-" + posta['receipt_time'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
+posta['sign_time'] = pd.to_datetime(
+    "2025-" + posta['sign_time'], format='%Y-%m-%d %H:%M:%S', errors='coerce'
+)
+posta['receipt_time'] = pd.to_datetime(
+    "2025-" + posta['receipt_time'], format='%Y-%m-%d %H:%M:%S', errors='coerce'
+)
 
 posta['delivery_duration'] = (posta['sign_time'] - posta['receipt_time']).dt.total_seconds() / 60
 posta['time_of_day'] = posta['receipt_time'].dt.hour
@@ -124,10 +130,9 @@ with tab4:
     )
     st.plotly_chart(fig_anom, use_container_width=True)
 
-    # --- Map Visualization ---
+    # Map Visualization
     st.subheader("🗺 Anomalies per City (Tanzania Map)")
 
-    # Tanzania city coordinates (approx centers)
     tanzania_cities = {
         "Dar es Salaam": (-6.7924, 39.2083),
         "Dodoma": (-6.1630, 35.7516),
@@ -136,7 +141,6 @@ with tab4:
         "Mbeya": (-8.9090, 33.4608),
     }
 
-    # Assign nearest city based on receipt coordinates
     def assign_city(lat, lng):
         min_city, min_dist = None, float("inf")
         for city, coords in tanzania_cities.items():
@@ -151,14 +155,9 @@ with tab4:
     map_data["city"] = map_data.apply(lambda row: assign_city(row["lat"], row["lng"]), axis=1)
     map_data["order_id"] = posta.loc[X_test.index, "order_id"]
 
-    # --- Table of anomalies per city ---
     anomalies_only = map_data[map_data['anomaly'] == -1]
-    city_count_table = anomalies_only.groupby("city").agg(
-        anomaly_count=('order_id','count'),
-        order_ids=('order_id', lambda x: ", ".join(map(str,x)))
-    ).reset_index()
-    
-    # --- Add download button instead ---
+
+    # Download anomalies CSV
     st.subheader("📥 Download Anomalies Data")
     csv_anomalies = anomalies_only.to_csv(index=False).encode('utf-8')
     st.download_button(
@@ -166,15 +165,15 @@ with tab4:
         data=csv_anomalies,
         file_name='anomalies_data.csv',
         mime='text/csv'
-        )
+    )
 
-    # --- Expandable list per city ---
+    # Expandable list per city
     for city, group in anomalies_only.groupby("city"):
         with st.expander(f"{city} - {len(group)} anomalies"):
             st.write("Order IDs:")
             st.write(group['order_id'].tolist())
 
-    # --- Map Plot ---
+    # Map Plot
     fig_map = px.scatter_map(
         map_data,
         lat="lat",
@@ -188,8 +187,8 @@ with tab4:
 
     fig_map.update_layout(
         mapbox_style="open-street-map",
-        mapbox_center={"lat": -6.0, "lon": 35.5},  # center of Tanzania
-        mapbox_zoom=5.5,  # fit all regions
+        mapbox_center={"lat": -6.0, "lon": 35.5},
+        mapbox_zoom=5.5,
         legend_title="Delivery Status",
         margin={"r":0,"t":30,"l":0,"b":0}
     )
